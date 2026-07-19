@@ -1,21 +1,21 @@
-#include "DenpaPhysicalLayer.h"
+#include "Esp32DacPhy.h"
 
-DenpaPhysicalLayer::DenpaPhysicalLayer(Module* module)
+Esp32DacPhy::Esp32DacPhy(Module* module)
     : PhysicalLayer(),
       module_(module) {
     freqStep = 1.0f;
 }
 
-Module* DenpaPhysicalLayer::getMod() {
+Module* Esp32DacPhy::getMod() {
     return module_;
 }
 
-void DenpaPhysicalLayer::setHexDumpEnabled(bool enabled) {
+void Esp32DacPhy::setHexDumpEnabled(bool enabled) {
     hexDumpEnabled_ = enabled;
     resetHexDump();
 }
 
-void DenpaPhysicalLayer::setDacEnabled(bool enabled) {
+void Esp32DacPhy::setDacEnabled(bool enabled) {
     dacEnabled_ = enabled;
 
     if (dacEnabled_) {
@@ -23,34 +23,34 @@ void DenpaPhysicalLayer::setDacEnabled(bool enabled) {
     }
 }
 
-void DenpaPhysicalLayer::setDacLevels(uint8_t markLevel, uint8_t spaceLevel) {
+void Esp32DacPhy::setDacLevels(uint8_t markLevel, uint8_t spaceLevel) {
     markLevel_ = markLevel;
     spaceLevel_ = spaceLevel;
 }
 
-void DenpaPhysicalLayer::setDacPin(uint8_t pin) {
+void Esp32DacPhy::setDacPin(uint8_t pin) {
     dacPin_ = pin;
 }
 
-int16_t DenpaPhysicalLayer::setEncoding(uint8_t encoding) {
-    Serial.print("[Denpa] Encoding: 0x");
+int16_t Esp32DacPhy::setEncoding(uint8_t encoding) {
+    Serial.print("[Esp32DacPhy] Encoding: 0x");
     Serial.println(encoding, HEX);
     return RADIOLIB_ERR_NONE;
 }
 
-int16_t DenpaPhysicalLayer::setDataShaping(uint8_t shaping) {
-    Serial.print("[Denpa] Shaping: 0x");
+int16_t Esp32DacPhy::setDataShaping(uint8_t shaping) {
+    Serial.print("[Esp32DacPhy] Shaping: 0x");
     Serial.println(shaping, HEX);
     return RADIOLIB_ERR_NONE;
 }
 
-int16_t DenpaPhysicalLayer::setFrequencyDeviation(float deviation) {
-    Serial.print("[Denpa] Frequency deviation: ");
+int16_t Esp32DacPhy::setFrequencyDeviation(float deviation) {
+    Serial.print("[Esp32DacPhy] Frequency deviation: ");
     Serial.println(deviation, 3);
     return RADIOLIB_ERR_NONE;
 }
 
-int16_t DenpaPhysicalLayer::transmitDirect(uint32_t frf) {
+int16_t Esp32DacPhy::transmitDirect(uint32_t frf) {
     const bool bit = decodeBit(frf);
 
     if (dacEnabled_) {
@@ -66,19 +66,19 @@ int16_t DenpaPhysicalLayer::transmitDirect(uint32_t frf) {
     return RADIOLIB_ERR_NONE;
 }
 
-bool DenpaPhysicalLayer::decodeBit(uint32_t frf) const {
+bool Esp32DacPhy::decodeBit(uint32_t frf) const {
     return frf < VirtualCenterFrequencyHz;
 }
 
-uint8_t DenpaPhysicalLayer::dacIdleLevel() const {
+uint8_t Esp32DacPhy::dacIdleLevel() const {
     return (static_cast<uint16_t>(markLevel_) + static_cast<uint16_t>(spaceLevel_)) / 2;
 }
 
-void DenpaPhysicalLayer::writeDacBit(bool bit) {
+void Esp32DacPhy::writeDacBit(bool bit) {
     dacWrite(dacPin_, bit ? markLevel_ : spaceLevel_);
 }
 
-void DenpaPhysicalLayer::appendBit(bool bit) {
+void Esp32DacPhy::appendBit(bool bit) {
     currentByte_ <<= 1;
 
     if (bit) {
@@ -96,7 +96,7 @@ void DenpaPhysicalLayer::appendBit(bool bit) {
     }
 }
 
-void DenpaPhysicalLayer::printByte(uint8_t value) {
+void Esp32DacPhy::printByte(uint8_t value) {
     if (value < 0x10) {
         Serial.print('0');
     }
@@ -112,7 +112,7 @@ void DenpaPhysicalLayer::printByte(uint8_t value) {
     }
 }
 
-int16_t DenpaPhysicalLayer::standby() {
+int16_t Esp32DacPhy::standby() {
     if (dacEnabled_) {
         dacWrite(dacPin_, dacIdleLevel());
     }
@@ -131,13 +131,13 @@ int16_t DenpaPhysicalLayer::standby() {
         }
 
         Serial.println();
-        Serial.print("[Denpa] Total bits: ");
+        Serial.print("[Esp32DacPhy] Total bits: ");
         Serial.println(totalBits_);
 
-        Serial.print("[Denpa] Total bytes: ");
+        Serial.print("[Esp32DacPhy] Total bytes: ");
         Serial.println((totalBits_ + 7) / 8);
     } else {
-        Serial.print("[Denpa] TX bits: ");
+        Serial.print("[Esp32DacPhy] TX bits: ");
         Serial.println(totalBits_);
     }
 
@@ -146,7 +146,7 @@ int16_t DenpaPhysicalLayer::standby() {
     return RADIOLIB_ERR_NONE;
 }
 
-void DenpaPhysicalLayer::resetHexDump() {
+void Esp32DacPhy::resetHexDump() {
     currentByte_ = 0;
     bitsInByte_ = 0;
     totalBits_ = 0;

@@ -3,11 +3,11 @@
 #include <Arduino.h>
 #include <RadioLib.h>
 
-class DenpaPhysicalLayer : public PhysicalLayer {
+class Esp32DacPhy : public PhysicalLayer {
 public:
     static constexpr float VirtualCenterFrequencyMHz = 100.0f;
 
-    explicit DenpaPhysicalLayer(Module* module);
+    explicit Esp32DacPhy(Module* module);
 
     int16_t transmitDirect(uint32_t frf = 0) override;
     int16_t standby() override;
