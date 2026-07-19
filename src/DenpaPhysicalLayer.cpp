@@ -10,6 +10,28 @@ Module* DenpaPhysicalLayer::getMod() {
     return module_;
 }
 
+void DenpaPhysicalLayer::setHexDumpEnabled(bool enabled) {
+    hexDumpEnabled_ = enabled;
+    resetHexDump();
+}
+
+void DenpaPhysicalLayer::setDacEnabled(bool enabled) {
+    dacEnabled_ = enabled;
+
+    if (dacEnabled_) {
+        dacWrite(dacPin_, dacIdleLevel());
+    }
+}
+
+void DenpaPhysicalLayer::setDacLevels(uint8_t markLevel, uint8_t spaceLevel) {
+    markLevel_ = markLevel;
+    spaceLevel_ = spaceLevel;
+}
+
+void DenpaPhysicalLayer::setDacPin(uint8_t pin) {
+    dacPin_ = pin;
+}
+
 int16_t DenpaPhysicalLayer::setEncoding(uint8_t encoding) {
     Serial.print("[Denpa] Encoding: 0x");
     Serial.println(encoding, HEX);
@@ -31,18 +53,21 @@ int16_t DenpaPhysicalLayer::setFrequencyDeviation(float deviation) {
 int16_t DenpaPhysicalLayer::transmitDirect(uint32_t frf) {
     const bool bit = decodeBit(frf);
 
-    if (outputMode_ == OutputMode::Dac) {
+    if (dacEnabled_) {
         writeDacBit(bit);
-        totalBits_++;
-    } else {
+    }
+
+    if (hexDumpEnabled_) {
         appendBit(bit);
+    } else {
+        totalBits_++;
     }
 
     return RADIOLIB_ERR_NONE;
 }
 
 bool DenpaPhysicalLayer::decodeBit(uint32_t frf) const {
-    return frf < centerFrequency_;
+    return frf < VirtualCenterFrequencyHz;
 }
 
 uint8_t DenpaPhysicalLayer::dacIdleLevel() const {
@@ -88,7 +113,11 @@ void DenpaPhysicalLayer::printByte(uint8_t value) {
 }
 
 int16_t DenpaPhysicalLayer::standby() {
-    if (outputMode_ == OutputMode::HexDump) {
+    if (dacEnabled_) {
+        dacWrite(dacPin_, dacIdleLevel());
+    }
+
+    if (hexDumpEnabled_) {
         if (bitsInByte_ != 0) {
             currentByte_ <<= (8 - bitsInByte_);
             printByte(currentByte_);
@@ -108,8 +137,7 @@ int16_t DenpaPhysicalLayer::standby() {
         Serial.print("[Denpa] Total bytes: ");
         Serial.println((totalBits_ + 7) / 8);
     } else {
-        dacWrite(dacPin_, dacIdleLevel());
-        Serial.print("[Denpa] DAC bits: ");
+        Serial.print("[Denpa] TX bits: ");
         Serial.println(totalBits_);
     }
 

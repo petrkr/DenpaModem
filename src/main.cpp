@@ -15,7 +15,7 @@ Module module(
     RADIOLIB_NC
 );
 
-DenpaPhysicalLayer phy(&module, 100000000UL);
+DenpaPhysicalLayer phy(&module);
 PagerClient pager(&phy);
 
 int16_t state;
@@ -29,22 +29,22 @@ void setup() {
 
     phy.setDacPin(25);
     phy.setDacLevels(150, 50);
+    phy.setDacEnabled(true);
 
-    // Use OutputMode::HexDump to inspect decoded POCSAG bytes on Serial.
-    // Use OutputMode::Dac to send the same decoded bit stream to ESP32 DAC.
-    // phy.setOutputMode(OutputMode::HexDump);
-    phy.setOutputMode(OutputMode::Dac);
+    // Hex dump debug prints decoded POCSAG bytes. It can disturb TX timing.
+    phy.setHexDumpEnabled(false);
+    // phy.setHexDumpEnabled(true);
 
     /*
-     * The base frequency is virtual. RadioLib calls transmitDirect() with
-     * centerFrequency +/- shift, and DenpaPhysicalLayer maps that to bits.
+     * The base frequency is virtual. Keep it tied to DenpaPhysicalLayer so
+     * PagerClient and the fixed bit decision threshold use the same value.
      *
      * speed: 1200 baud
      * invert: false
      * shift: 4500 Hz
      */
      state = pager.begin(
-        100.0f,
+        DenpaPhysicalLayer::VirtualCenterFrequencyMHz,
         1200
     );
 
