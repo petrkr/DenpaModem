@@ -32,6 +32,26 @@ void Esp32DacPhy::setDacPin(uint8_t pin) {
     dacPin_ = pin;
 }
 
+bool Esp32DacPhy::isHexDumpEnabled() const {
+    return hexDumpEnabled_;
+}
+
+bool Esp32DacPhy::isDacEnabled() const {
+    return dacEnabled_;
+}
+
+uint8_t Esp32DacPhy::getDacPin() const {
+    return dacPin_;
+}
+
+uint8_t Esp32DacPhy::getMarkLevel() const {
+    return markLevel_;
+}
+
+uint8_t Esp32DacPhy::getSpaceLevel() const {
+    return spaceLevel_;
+}
+
 int16_t Esp32DacPhy::setEncoding(uint8_t encoding) {
     Serial.print("[Esp32DacPhy] Encoding: 0x");
     Serial.println(encoding, HEX);

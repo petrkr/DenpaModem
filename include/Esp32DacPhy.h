@@ -21,6 +21,12 @@ public:
     void setDacLevels(uint8_t markLevel, uint8_t spaceLevel);
     void setDacPin(uint8_t pin);
 
+    bool isHexDumpEnabled() const;
+    bool isDacEnabled() const;
+    uint8_t getDacPin() const;
+    uint8_t getMarkLevel() const;
+    uint8_t getSpaceLevel() const;
+
 private:
     Module* getMod() override;
 
