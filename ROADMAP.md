@@ -17,22 +17,138 @@ The first target is POCSAG transmit over the ESP32 DAC. The design should stay o
 
 ### Module / Plugin Model
 
-Protocol and integration support should be organized as modules/plugins.
+DenpaModem should use project-owned modules/plugins above RadioLib.
 
-Examples:
+Plugin types:
 
-- POCSAG module.
-- APRS module.
-- Future RTTY/CW/FSK/OOK modules.
-- DAPNET integration module.
-- MQTT integration module.
+- RadioLib-compatible extensions
+  - `PhysicalLayer` backends such as `Esp32DacPhy`, PWM, I2S DAC, or external DAC.
+  - Optional RadioLib protocol/client additions.
+  - Must stay free of DenpaModem web, DAPNET, MQTT, and configuration UI logic.
+- Protocol modules
+  - POCSAG, APRS, RTTY, CW, and future modulation/protocol modules.
+  - Own protocol-specific settings, validation, commands, and transmit API.
+  - May use RadioLib, another library, or custom encoder code.
+- Transport modules
+  - Serial command console.
+  - Web/API.
+  - TCP command socket.
+  - Future UDP where useful.
+- Integration modules
+  - DAPNET.
+  - MQTT.
+  - Hamlib network control.
+  - Direct CAT control.
+  - Metrics.
+- Hardware/service modules
+  - Network manager.
+  - PTT manager.
+  - Configuration store.
+  - TX scheduler/queue.
 
 Rules:
 
-- A module owns protocol-specific commands, validation, and encoder setup.
-- A module should not depend directly on a specific control transport.
-- A module may use RadioLib, another library, or custom encoder code.
+- Protocol modules expose DenpaModem APIs, not raw RadioLib APIs.
+- Transport and integration modules call protocol modules through shared application services.
+- Protocol-specific logic should not leak into transports.
+- Transport-specific parsing should not leak into protocol modules.
 - If a useful protocol is missing in RadioLib, evaluate whether to implement it locally first or contribute it upstream to RadioLib.
+
+### Module Orchestration
+
+Use a central application context that owns shared services and module registration.
+
+Core services:
+
+- Configuration store.
+- Event bus.
+- Command registry.
+- Protocol registry.
+- Output registry.
+- Network manager.
+- Radio/PTT controller.
+- TX scheduler.
+- Logger/status service.
+
+Module lifecycle:
+
+```text
+construct -> register -> loadConfig -> begin -> loop -> stop
+```
+
+Responsibilities:
+
+- `register`
+  - Register commands, protocol handlers, web routes, status fields, and configuration schema.
+- `loadConfig`
+  - Load and migrate module configuration.
+- `begin`
+  - Start hardware or network resources after configuration is loaded.
+- `loop`
+  - Run non-blocking periodic work.
+- `stop`
+  - Release resources when needed.
+
+Modules should communicate through services and events, not direct global references.
+
+Example flow:
+
+```text
+WebModule -> CommandRegistry -> PocsagModule -> TxScheduler -> Esp32DacPhy
+DapnetModule -> PocsagModule -> TxScheduler -> Esp32DacPhy
+SerialModule -> CommandRegistry -> Dac settings / PocsagModule / Status
+```
+
+### Configuration Model
+
+Use a shared configuration store with module-owned schemas.
+
+Goals:
+
+- Each module owns its own configuration namespace.
+- The core owns storage, persistence, versioning, and migration flow.
+- Configuration can be changed through Serial, Web, TCP/API, or defaults.
+- Runtime state and persistent configuration stay separate.
+
+Example namespaces:
+
+```text
+core.network
+core.ptt
+output.esp32_dac
+protocol.pocsag
+integration.dapnet
+integration.mqtt
+radio.hamlib
+radio.yaesu_cat
+```
+
+Each module should provide:
+
+- Config schema version.
+- Default config.
+- Validation.
+- Migration from older versions.
+- Apply method for runtime changes.
+- Export/status view without secrets.
+
+Recommended config storage format:
+
+- JSON-like structured model in code.
+- Persist to ESP32 NVS initially.
+- Keep room for file-based storage later if LittleFS/SPIFFS is added.
+
+Versioning:
+
+- Global config version for whole-device migrations.
+- Per-module config version for plugin-specific migrations.
+- Unknown module config should be preserved where possible.
+- Failed migration should keep old config and report `ERR config-migration`.
+
+Policy:
+
+- Do not let every plugin invent its own persistence.
+- Let every plugin own validation and migration of its own schema.
 
 ### Physical Output Backends
 
@@ -98,6 +214,32 @@ Future transports:
 
 The parser should receive complete command lines or framed command messages from any transport and call the same application services.
 
+Network setup should be delegated to a reusable `NetworkManager` service/module where possible.
+
+### UART0 Recovery Console
+
+UART0 is always available as the default recovery console.
+
+Responsibilities:
+
+- Boot logs.
+- Runtime logs.
+- Configuration commands.
+- Settings inspection.
+- Recovery/factory reset commands.
+
+Policy:
+
+- UART0 support is core recovery functionality, not an optional transport module.
+- Runtime log level can be set to `NONE`.
+- Command support remains available on UART0.
+- Binary protocols such as KISS must not be mixed with logs.
+- KISS on UART0 is not planned for initial builds.
+
+Open point:
+
+- If KISS is ever implemented, decide whether it requires a separate UART.
+
 ## Control Protocol
 
 Start with a simple line-based text protocol. It is easy to test manually and does not lock the project into a binary framing format too early.
@@ -107,7 +249,6 @@ Example commands:
 ```text
 TX POCSAG 1234 ASCII ahoj
 POCSAG SPEED 1200
-POCSAG SHIFT 4500
 DAC PIN 25
 DAC LEVELS 150 50
 DAC ENABLE 1
@@ -187,11 +328,13 @@ PTT control should be separate from modulation output so protocols can request T
 
 ## KISS / TNC Compatibility
 
-KISS is useful for AX.25/APRS compatibility, but it should not be the primary DenpaModem control protocol.
+Very low priority.
+
+KISS may be useful for AX.25/APRS compatibility, but it should not be the primary DenpaModem control protocol.
 
 Plan:
 
-- Keep KISS as a future optional endpoint for AX.25/APRS.
+- Keep KISS only as a future optional endpoint for AX.25/APRS.
 - Do not force POCSAG or DAC configuration through KISS commands.
 - If implemented, run KISS beside the native command protocol, not instead of it.
 
@@ -226,12 +369,12 @@ Runtime configurable:
 - DAC space level.
 - Hex dump debug.
 - POCSAG speed.
-- POCSAG shift.
-- POCSAG inversion.
 - Repeated transmit interval for test mode.
 - Radio control backend.
 - PTT backend.
 - DAPNET endpoint and credentials.
+- Network settings.
+- Enabled modules/plugins.
 
 Later persistent configuration:
 
@@ -264,6 +407,13 @@ Plan:
 - DAC levels are runtime configurable in code.
 - Hex dump debug can verify preamble and sync word.
 
+Known FT-991A DATA input calibration:
+
+- `DAC LEVELS 235 20` is the current working default.
+- `DAC LEVELS 225 30` works but needs longer reliability testing.
+- `DAC LEVELS 210 45` is borderline.
+- `DAC LEVELS 255 0` works but uses DAC rail values.
+
 ### M2: Serial Control
 
 - Add command parser.
@@ -278,6 +428,9 @@ Plan:
 - Avoid direct global manipulation from command handlers.
 - Add `STATUS`.
 - Prevent overlapping transmissions.
+- Add module registry.
+- Add command registry.
+- Add TX scheduler skeleton.
 
 ### M4: Web Control
 
@@ -296,21 +449,25 @@ Plan:
 
 ### M6: Persistent Settings
 
+- Add shared configuration store.
 - Store selected settings in ESP32 NVS.
 - Add `SAVE`, `LOAD`, `DEFAULTS`.
+- Add per-module config schema versions.
+- Add basic migration hooks.
 
 ### M7: Network Control
 
 - Add TCP transport using the same command parser.
 - Keep Serial available for recovery/debug.
 - Evaluate Ethernet and Wi-Fi variants.
+- Integrate or adapt reusable `NetworkManager`.
 - Add Hamlib network control evaluation.
 
 ### M8: Additional Protocols
 
 - Add AFSK/Bell 202 only after choosing waveform generation method.
 - Add AX.25/APRS.
-- Consider KISS endpoint for AX.25/APRS.
+- Keep KISS out of scope unless there is a real user need.
 
 ### M9: Observability and Integrations
 
@@ -361,5 +518,6 @@ Low priority:
 
 Nice to have:
 
+- KISS endpoint for AX.25/APRS.
 - Prometheus metrics.
 - Zabbix integration.
