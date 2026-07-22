@@ -1,0 +1,21 @@
+{
+  "name": "DapnetClient",
+  "version": "0.1.0",
+  "description": "Line-oriented DAPNET TCP client for Arduino Client implementations.",
+  "keywords": [
+    "dapnet",
+    "esp32",
+    "tcp"
+  ],
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "espressif32"
+  ],
+  "build": {
+    "flags": [
+      "-std=gnu++17"
+    ]
+  }
+}
